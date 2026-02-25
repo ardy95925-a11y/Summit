@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Summit: Rope & Rain</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #050a12;
+      font-family: 'Crimson Text', serif;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+    }
+
+    /* Loading screen */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #050a12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.6s;
+    }
+    #loading h1 {
+      font-size: 32px;
+      color: #8899bb;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    .loader-bar {
+      width: 200px;
+      height: 3px;
+      background: rgba(100, 130, 180, 0.2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loader-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4466cc, #8899ff);
+      border-radius: 2px;
+      animation: load 1.2s ease-out forwards;
+    }
+    @keyframes load {
+      from { width: 0% }
+      to { width: 100% }
+    }
+
+    /* Death overlay */
+    #death-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 50;
+      transition: background 0.8s;
+    }
+    #death-screen.active {
+      background: rgba(0, 0, 0, 0.7);
+      pointer-events: all;
+    }
+    #death-screen .death-content {
+      text-align: center;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.5s 0.3s;
+    }
+    #death-screen.active .death-content {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #death-screen h2 {
+      font-size: 44px;
+      color: #cc6655;
+      text-shadow: 0 0 30px rgba(200, 80, 60, 0.5);
+      margin-bottom: 10px;
+    }
+    #death-screen p {
+      font-size: 18px;
+      color: rgba(180, 200, 230, 0.7);
+      margin-bottom: 30px;
+    }
+    .retry-btn {
+      padding: 14px 40px;
+      background: linear-gradient(180deg, #3355aa, #1a2d77);
+      border: 1px solid rgba(80, 120, 200, 0.5);
+      border-radius: 10px;
+      color: #c8d8ff;
+      font-size: 20px;
+      font-family: 'Crimson Text', serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 20px rgba(50, 80, 180, 0.3);
+      margin: 6px;
+    }
+    .retry-btn:hover { background: linear-gradient(180deg, #4466cc, #2233aa); transform: scale(1.03); }
+    
+    /* Checkpoint flash */
+    #cp-flash {
+      position: fixed;
+      inset: 0;
+      background: rgba(100, 220, 160, 0);
+      pointer-events: none;
+      z-index: 30;
+      transition: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <h1>Summit</h1>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="death-screen">
+  <div class="death-content">
+    <h2>You Slipped...</h2>
+    <p id="death-stats">You climbed 0m and collected 0 coins</p>
+    <button class="retry-btn" id="btn-retry">Try Again</button>
+    <button class="retry-btn" id="btn-title">Back to Title</button>
+  </div>
+</div>
+
+<div id="cp-flash"></div>
+
+<script>
+// Polyfill for older browsers
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (typeof r === 'number') r = [r, r, r, r];
+    else if (!Array.isArray(r)) r = [0, 0, 0, 0];
+    while (r.length < 4) r.push(r[r.length - 1] || 0);
+    this.beginPath();
+    this.moveTo(x + r[0], y);
+    this.lineTo(x + w - r[1], y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r[1]);
+    this.lineTo(x + w, y + h - r[2]);
+    this.quadraticCurveTo(x + w, y + h, x + w - r[2], y + h);
+    this.lineTo(x + r[3], y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r[3]);
+    this.lineTo(x, y + r[0]);
+    this.quadraticCurveTo(x, y, x + r[0], y);
+    this.closePath();
+  };
+}
+</script>
+<script src="save.js"></script>
+<script src="renderer.js"></script>
+<script src="ui.js"></script>
+<script src="game.js"></script>
+
+<script>
+// =====================================
+// MAIN APPLICATION CONTROLLER
+// =====================================
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let renderer, ui, game;
+let saveData;
+let appState = 'loading'; // loading, title, playing, cards, dead
+let lastTime = 0;
+
+// ---- Init ----
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  if (renderer) renderer.resize(W, H);
+  if (ui) ui.resize(W, H);
+  if (game) { game.W = W; game.H = H; }
+}
+
+window.addEventListener('resize', resize);
+
+function init() {
+  resize();
+  saveData = Save.load();
+
+  renderer = new Renderer(canvas);
+  ui = new UI(canvas);
+  game = createGame();
+
+  // Hide loading screen
+  setTimeout(() => {
+    const loading = document.getElementById('loading');
+    loading.style.opacity = '0';
+    setTimeout(() => { loading.style.display = 'none'; }, 600);
+    appState = 'title';
+    requestAnimationFrame(loop);
+  }, 1400);
+}
+
+function createGame() {
+  const g = new Game(canvas);
+
+  g.onCoinCollect = (x, y, worth) => {
+    renderer.spawnCoinParticles(x - g.camera.x, y - g.camera.y);
+    ui.addFloatingText(x - g.camera.x, y - g.camera.y - 20, `+${worth}`, '#FFD700', 20);
+    saveData.coins = (saveData.coins || 0) + worth;
+    saveData.totalCoinsEver = (saveData.totalCoinsEver || 0) + worth;
+    Save.save(saveData);
+  };
+
+  g.onCheckpoint = (x, y, bonus) => {
+    // Flash
+    const flash = document.getElementById('cp-flash');
+    flash.style.transition = 'none';
+    flash.style.background = 'rgba(100, 220, 160, 0.25)';
+    setTimeout(() => {
+      flash.style.transition = 'background 0.8s';
+      flash.style.background = 'rgba(100, 220, 160, 0)';
+    }, 50);
+
+    ui.addFloatingText(x - g.camera.x, y - g.camera.y - 40, `CHECKPOINT! +${bonus}🪙`, '#66ffaa', 24);
+    saveData.checkpointsReached = (saveData.checkpointsReached || 0) + 1;
+    Save.save(saveData);
+
+    // Show cards after brief delay
+    setTimeout(() => {
+      if (appState !== 'playing') return;
+      appState = 'cards';
+      g.paused = true;
+
+      const cards = getRandomUpgrades(3);
+      ui.showCards(cards, (choiceIdx) => {
+        g.applyUpgrade(cards[choiceIdx]);
+        g.paused = false;
+        appState = 'playing';
+        ui.addFloatingText(W / 2, H / 2, `${cards[choiceIdx].icon} ${cards[choiceIdx].name}!`, cards[choiceIdx].color, 26);
+      });
+    }, 600);
+  };
+
+  g.onGameOver = () => {
+    const heightM = Math.floor(g.highestY / 10);
+    const coins = Math.floor(g.coinsCollected);
+
+    // Update save
+    if (g.highestY > (saveData.highestPoint || 0)) {
+      saveData.highestPoint = g.highestY;
+    }
+    saveData.stats = saveData.stats || {};
+    saveData.stats.gamesPlayed = (saveData.stats.gamesPlayed || 0) + 1;
+    saveData.stats.totalDistance = (saveData.stats.totalDistance || 0) + heightM;
+    Save.save(saveData);
+
+    document.getElementById('death-stats').textContent =
+      `You climbed ${heightM}m and collected ${coins} coins`;
+    document.getElementById('death-screen').classList.add('active');
+    appState = 'dead';
+  };
+
+  g.onHeightRecord = (h) => {
+    if (h > (saveData.highestPoint || 0)) {
+      saveData.highestPoint = h;
+    }
+  };
+
+  return g;
+}
+
+// ---- Input ----
+function screenToCanvas(e) {
+  if (e.touches) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const { x, y } = screenToCanvas(e);
+  handlePointerDown(x, y);
+});
+canvas.addEventListener('mousemove', (e) => {
+  const { x, y } = screenToCanvas(e);
+  handlePointerMove(x, y);
+});
+canvas.addEventListener('mouseup', (e) => {
+  const { x, y } = screenToCanvas(e);
+  handlePointerUp(x, y);
+});
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const { x, y } = screenToCanvas(e);
+  handlePointerDown(x, y);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const { x, y } = screenToCanvas(e);
+  handlePointerMove(x, y);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const touch = e.changedTouches[0];
+  handlePointerUp(touch.clientX, touch.clientY);
+}, { passive: false });
+
+function handlePointerDown(x, y) {
+  if (appState === 'title') {
+    ui.checkTitleClick(x, y, saveData,
+      () => startGame(),
+      () => {
+        Save.clear();
+        saveData = Save.load();
+        ui.addFloatingText(W / 2, H / 2, 'Save cleared!', '#ff8888', 22);
+      }
+    );
+    return;
+  }
+  if (appState === 'cards') {
+    ui.handleClick(x, y);
+    return;
+  }
+  if (appState === 'playing') {
+    game.onTouchStart(x, y);
+  }
+}
+
+function handlePointerMove(x, y) {
+  if (appState === 'cards') {
+    ui.handleMove(x, y);
+  }
+  if (appState === 'playing') {
+    game.onTouchMove(x, y);
+  }
+}
+
+function handlePointerUp(x, y) {
+  if (appState === 'playing') {
+    game.onTouchEnd(x, y);
+  }
+}
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('death-screen').classList.remove('active');
+  startGame();
+});
+document.getElementById('btn-title').addEventListener('click', () => {
+  document.getElementById('death-screen').classList.remove('active');
+  appState = 'title';
+  ui.showingTitle = true;
+  ui.titleAnimTime = 0;
+});
+
+function startGame() {
+  game = createGame();
+  game.running = true;
+  appState = 'playing';
+  ui.showingTitle = false;
+
+  // Update save game count
+  saveData.stats = saveData.stats || {};
+  Save.save(saveData);
+}
+
+// ---- Main Loop ----
+function loop(timestamp) {
+  const dt = Math.min(timestamp - lastTime, 50); // cap dt at 50ms
+  lastTime = timestamp;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const camY = (game && !ui.showingTitle) ? game.camera.y : 0;
+  const camX = 0;
+
+  // Background
+  renderer.drawBackground(camY);
+  renderer.drawFog(camY);
+
+  if (appState === 'title') {
+    // Title rain
+    renderer.update(dt, 0);
+    renderer.drawRain();
+    renderer.drawParticles();
+    ui.update(dt, null);
+    ui.drawTitle(saveData,
+      () => startGame(),
+      () => {
+        Save.clear();
+        saveData = Save.load();
+      }
+    );
+  } else {
+    // Playing / cards / dead
+    renderer.update(dt, camY);
+    renderer.drawRain();
+    renderer.drawFog(camY);
+
+    // Terrain
+    const visibleTerrain = game.getVisibleTerrain();
+    game.drawTerrainPoints(ctx, visibleTerrain);
+
+    // Aim line
+    if (appState === 'playing') {
+      game.drawAimLine(ctx);
+    }
+
+    // Rope
+    if (game.rope.throwing) {
+      const tip = game.getRopeThrowPoint();
+      if (tip) {
+        renderer.drawRope(ctx,
+          game.player.x - game.camera.x,
+          game.player.y - game.camera.y,
+          tip.x - game.camera.x,
+          tip.y - game.camera.y,
+          game.rope.maxLength, 10
+        );
+      }
+    } else if (game.rope.attached) {
+      renderer.drawRope(ctx,
+        game.player.x - game.camera.x,
+        game.player.y - game.camera.y,
+        game.rope.anchorX - game.camera.x,
+        game.rope.anchorY - game.camera.y,
+        game.rope.length, 20
+      );
+    }
+
+    // Checkpoints
+    for (const cp of game.getVisibleCheckpoints()) {
+      renderer.drawCheckpoint(ctx,
+        cp.x - game.camera.x,
+        cp.y - game.camera.y,
+        cp.reached,
+        cp.animTime
+      );
+    }
+
+    // Coins
+    for (const coin of game.getVisibleCoins()) {
+      if (!coin.collected) {
+        renderer.drawCoin(ctx,
+          coin.x - game.camera.x,
+          coin.y - game.camera.y,
+          coin.radius,
+          false,
+          game.time + coin.animOffset
+        );
+      }
+    }
+
+    // Player
+    const p = game.player;
+    const ropeAngle = game.rope.attached
+      ? Math.atan2(game.rope.anchorY - p.y, game.rope.anchorX - p.x)
+      : 0;
+    renderer.drawPlayer(ctx,
+      p.x - game.camera.x,
+      p.y - game.camera.y,
+      { x: p.vx, y: p.vy },
+      game.rope.attached,
+      ropeAngle
+    );
+
+    // Particles
+    renderer.drawParticles();
+
+    // HUD
+    ui.update(dt, {
+      coins: game.coinsCollected,
+      highestY: game.highestY,
+      checkpointsReached: game.checkpointsReached,
+      upgrades: game.sessionUpgrades,
+    });
+    ui.drawHUD({
+      coins: game.coinsCollected,
+      highestY: game.highestY,
+      checkpointsReached: game.checkpointsReached,
+      upgrades: game.sessionUpgrades,
+    });
+
+    // Cards overlay
+    if (appState === 'cards') {
+      ui.drawCards();
+    }
+
+    // Update game
+    if (appState === 'playing') {
+      game.update(dt);
+    }
+  }
+
+  // Transition overlay
+  renderer.drawFog(camY);
+  ui.drawTransition();
+
+  requestAnimationFrame(loop);
+}
+
+// ---- Boot ----
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
