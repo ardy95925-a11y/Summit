@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#050912">
+<title>Summit: Rope & Rain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#020810;
+  font-family:'Crimson Text',Georgia,serif;
+  touch-action:none;
+  -webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+#canvas{
+  display:block;
+  width:100vw;height:100vh;
+  cursor:crosshair;
+  touch-action:none;
+}
+
+/* ── LOADING ────────────────────────────────────────────────── */
+#loading{
+  position:fixed;inset:0;
+  background:#020810;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;z-index:200;
+  transition:opacity 0.8s ease;
+}
+#loading.fade-out{opacity:0;pointer-events:none;}
+
+.load-mountain{
+  width:180px;height:140px;
+  margin-bottom:30px;
+  animation:loadMountainFade 0.6s ease-out;
+}
+@keyframes loadMountainFade{from{opacity:0;transform:translateY(15px);}to{opacity:1;transform:none;}}
+
+.load-title{
+  font-size:42px;font-weight:700;
+  color:#c8daff;
+  letter-spacing:8px;text-transform:uppercase;
+  text-shadow:0 0 30px rgba(60,100,255,0.5);
+  animation:loadTitleFade 0.5s 0.2s ease-out both;
+}
+@keyframes loadTitleFade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+.load-sub{
+  font-size:14px;font-style:italic;
+  color:rgba(120,155,220,0.6);
+  margin-top:6px;margin-bottom:36px;
+  letter-spacing:2px;
+  animation:loadTitleFade 0.5s 0.35s ease-out both;
+}
+
+.load-bar-wrap{
+  width:220px;height:3px;
+  background:rgba(60,90,160,0.2);
+  border-radius:3px;overflow:hidden;
+  animation:loadTitleFade 0.4s 0.5s ease-out both;
+}
+.load-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,#2244aa,#6688ff,#aabbff);
+  border-radius:3px;
+  transition:width 0.05s linear;
+}
+.load-tip{
+  margin-top:16px;
+  font-size:13px;font-style:italic;
+  color:rgba(100,130,200,0.45);
+  animation:loadTitleFade 0.4s 0.7s ease-out both;
+}
+
+/* ── DEATH SCREEN ───────────────────────────────────────────── */
+#death{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;z-index:80;
+  background:rgba(0,0,0,0);
+  transition:background 1s;
+}
+#death.active{background:rgba(0,5,15,0.82);pointer-events:all;}
+
+.death-inner{
+  text-align:center;
+  opacity:0;transform:translateY(22px) scale(0.97);
+  transition:opacity 0.5s 0.4s, transform 0.5s 0.4s;
+}
+#death.active .death-inner{opacity:1;transform:none;}
+
+.death-icon{font-size:52px;display:block;margin-bottom:12px;animation:deathSpin 1s ease-out;}
+@keyframes deathSpin{from{transform:rotate(-30deg)scale(0.5);opacity:0;}to{transform:none;opacity:1;}}
+
+.death-title{
+  font-size:clamp(32px,6vw,52px);font-weight:700;
+  color:#cc7766;
+  text-shadow:0 0 40px rgba(200,90,70,0.6);
+  margin-bottom:8px;
+}
+.death-sub{
+  font-size:clamp(15px,2.5vw,20px);font-style:italic;
+  color:rgba(160,190,240,0.7);
+  margin-bottom:10px;
+}
+.death-stats{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  margin:18px auto 28px;max-width:380px;padding:0 20px;
+}
+.stat-box{
+  background:rgba(20,35,70,0.6);
+  border:1px solid rgba(60,100,180,0.3);
+  border-radius:10px;padding:10px 8px;
+}
+.stat-label{font-size:9px;color:rgba(100,140,210,0.6);letter-spacing:2px;display:block;margin-bottom:4px;}
+.stat-val{font-size:clamp(18px,4vw,26px);font-weight:700;color:#d0e4ff;}
+
+.death-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;padding:0 16px;}
+.dbtn{
+  padding:14px 32px;
+  background:linear-gradient(180deg,#2d4899,#162060);
+  border:1px solid rgba(80,130,220,0.45);
+  border-radius:12px;
+  color:#c8dcff;font-size:clamp(16px,3vw,20px);
+  font-family:'Crimson Text',serif;font-weight:600;
+  cursor:pointer;transition:all 0.18s;
+  box-shadow:0 4px 20px rgba(30,60,180,0.25);
+  min-width:140px;
+}
+.dbtn:hover,.dbtn:active{
+  background:linear-gradient(180deg,#3f60cc,#1f3090);
+  transform:translateY(-2px);
+  box-shadow:0 8px 28px rgba(50,90,220,0.4);
+}
+.dbtn.secondary{
+  background:rgba(20,30,55,0.6);
+  border-color:rgba(60,90,160,0.3);
+  color:rgba(140,170,230,0.8);
+}
+.dbtn.secondary:hover{background:rgba(30,45,80,0.8);color:#c0d4ff;}
+
+/* ── TOUCH HINT ─────────────────────────────────────────────── */
+#touch-hint{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:rgba(10,20,50,0.65);
+  border:1px solid rgba(60,100,180,0.3);
+  border-radius:30px;padding:10px 22px;
+  font-size:13px;font-style:italic;color:rgba(140,175,235,0.8);
+  pointer-events:none;z-index:60;
+  opacity:1;transition:opacity 1s;
+  backdrop-filter:blur(6px);
+}
+#touch-hint.hidden{opacity:0;}
+
+/* ── CHECKPOINT FLASH ───────────────────────────────────────── */
+#cp-flash{
+  position:fixed;inset:0;
+  background:rgba(80,220,150,0);
+  pointer-events:none;z-index:40;
+  transition:background 0s;
+}
+
+/* ── RIPPLE TOUCH INDICATOR ─────────────────────────────────── */
+.touch-ripple{
+  position:fixed;
+  width:40px;height:40px;
+  border-radius:50%;
+  border:2px solid rgba(120,180,255,0.6);
+  transform:translate(-50%,-50%) scale(0);
+  pointer-events:none;z-index:90;
+  animation:rippleAnim 0.4s ease-out forwards;
+}
+@keyframes rippleAnim{
+  from{transform:translate(-50%,-50%) scale(0);opacity:0.8;}
+  to  {transform:translate(-50%,-50%) scale(2.5);opacity:0;}
+}
+
+/* ── NEW RECORD BANNER ───────────────────────────────────────── */
+#record-banner{
+  position:fixed;top:90px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,rgba(20,50,120,0.9),rgba(40,90,180,0.8));
+  border:1px solid rgba(100,160,255,0.5);
+  border-radius:30px;padding:10px 28px;
+  font-size:clamp(14px,2.5vw,18px);font-weight:600;
+  color:#c8e0ff;
+  text-shadow:0 0 15px rgba(80,140,255,0.5);
+  pointer-events:none;z-index:70;
+  opacity:0;transform:translateX(-50%) translateY(-20px);
+  transition:opacity 0.4s, transform 0.4s;
+  backdrop-filter:blur(8px);
+}
+#record-banner.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <svg class="load-mountain" viewBox="0 0 180 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="mg1" x1="0" y1="140" x2="90" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#0a1628"/>
+        <stop offset="1" stop-color="#1e3558"/>
+      </linearGradient>
+      <linearGradient id="mg2" x1="180" y1="140" x2="90" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#0a1628"/>
+        <stop offset="1" stop-color="#253f6a"/>
+      </linearGradient>
+      <linearGradient id="snow" x1="90" y1="0" x2="90" y2="35" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#d0e8ff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#d0e8ff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <!-- Back peak -->
+    <path d="M40 130 L130 10 L170 130Z" fill="url(#mg2)" opacity="0.5"/>
+    <!-- Main peak left face -->
+    <path d="M0 130 L90 5 L90 130Z" fill="url(#mg1)"/>
+    <!-- Main peak right face -->
+    <path d="M90 5 L180 130 L90 130Z" fill="url(#mg2)"/>
+    <!-- Snow cap -->
+    <path d="M90 5 L72 42 Q81 36 90 34 Q99 36 108 42 Z" fill="url(#snow)"/>
+    <!-- Rain lines -->
+    <g stroke="rgba(140,190,255,0.3)" stroke-width="1" stroke-linecap="round">
+      <line x1="20" y1="0" x2="15" y2="25"/>
+      <line x1="50" y1="5" x2="45" y2="30"/>
+      <line x1="80" y1="0" x2="75" y2="20"/>
+      <line x1="110" y1="8" x2="105" y2="33"/>
+      <line x1="145" y1="2" x2="140" y2="27"/>
+      <line x1="165" y1="10" x2="160" y2="35"/>
+    </g>
+    <!-- Rope & climber -->
+    <path d="M90 12 Q100 50 105 80" stroke="rgba(200,160,80,0.6)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="105" cy="80" r="5" fill="rgba(220,120,70,0.7)"/>
+    <circle cx="105" cy="73" r="3.5" fill="rgba(240,195,150,0.7)"/>
+  </svg>
+  <div class="load-title">Summit</div>
+  <div class="load-sub">Rope &amp; Rain</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+  <div class="load-tip" id="load-tip">Loading the mountain...</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<!-- Death Screen -->
+<div id="death">
+  <div class="death-inner">
+    <span class="death-icon">🏔</span>
+    <div class="death-title">You Slipped...</div>
+    <div class="death-sub">The mountain claims another climber.</div>
+    <div class="death-stats">
+      <div class="stat-box"><span class="stat-label">ALTITUDE</span><span class="stat-val" id="d-height">0m</span></div>
+      <div class="stat-box"><span class="stat-label">COINS</span><span class="stat-val" id="d-coins">0</span></div>
+      <div class="stat-box"><span class="stat-label">CHECKPOINTS</span><span class="stat-val" id="d-cps">0</span></div>
+    </div>
+    <div class="death-btns">
+      <button class="dbtn" id="btn-retry">⛰ Try Again</button>
+      <button class="dbtn secondary" id="btn-title">← Title</button>
+    </div>
+  </div>
+</div>
+
+<div id="cp-flash"></div>
+<div id="touch-hint">Tap above you to throw rope • Tap again to release</div>
+<div id="record-banner" id="record-banner">✦ NEW RECORD!</div>
+
+<script>
+// ─── polyfill roundRect ───────────────────────────────────────────────────────
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+    if(typeof r==='number')r=[r,r,r,r];
+    else if(!Array.isArray(r))r=[0,0,0,0];
+    while(r.length<4)r.push(r[r.length-1]||0);
+    this.moveTo(x+r[0],y);
+    this.lineTo(x+w-r[1],y);this.quadraticCurveTo(x+w,y,x+w,y+r[1]);
+    this.lineTo(x+w,y+h-r[2]);this.quadraticCurveTo(x+w,y+h,x+w-r[2],y+h);
+    this.lineTo(x+r[3],y+h);this.quadraticCurveTo(x,y+h,x,y+h-r[3]);
+    this.lineTo(x,y+r[0]);this.quadraticCurveTo(x,y,x+r[0],y);
+  };
+}
+</script>
+<script src="save.js"></script>
+<script src="renderer.js"></script>
+<script src="ui.js"></script>
+<script src="game.js"></script>
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════════
+//  SUMMIT — Main controller
+// ═══════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+let W, H;
+let renderer, ui, game, saveData;
+let appState = 'loading'; // loading | title | playing | cards | dead
+let lastTime = 0;
+
+// Milestone heights (m)
+const MILESTONES = [100,250,500,1000,2000,3000,5000,10000];
+let nextMilestone = 0;
+let recordBannerTimer = 0;
+
+// ─── Resize ──────────────────────────────────────────────────────────────────
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W+'px';
+  canvas.style.height = H+'px';
+  ctx.scale(dpr, dpr);
+  if(renderer) renderer.resize(W,H);
+  if(ui)       ui.resize(W,H);
+  if(game)     { game.W=W; game.H=H; }
+}
+window.addEventListener('resize', resize, { passive:true });
+
+// ─── Loading ─────────────────────────────────────────────────────────────────
+const LOAD_TIPS = [
+  'Tap above you to throw your rope…',
+  'Tap again while attached to release!',
+  'Coins build combos for bigger rewards.',
+  'Each checkpoint earns you an upgrade.',
+  'The mountain gets narrower the higher you go.',
+  'Icy ledges are slippery — watch your step!',
+  'Lightning strikes are just ambience. Probably.',
+];
+
+function runLoadSequence(onDone){
+  const bar  = document.getElementById('load-bar');
+  const tip  = document.getElementById('load-tip');
+  const load = document.getElementById('loading');
+  tip.textContent = LOAD_TIPS[Math.floor(Math.random()*LOAD_TIPS.length)];
+  let pct=0;
+  const interval = setInterval(()=>{
+    pct += 2 + Math.random()*4;
+    bar.style.width = Math.min(100,pct)+'%';
+    if(pct>=100){
+      clearInterval(interval);
+      bar.style.width='100%';
+      setTimeout(()=>{
+        load.classList.add('fade-out');
+        setTimeout(onDone, 820);
+      }, 400);
+    }
+  },40);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init(){
+  resize();
+  saveData = Save.load();
+  renderer = new Renderer(canvas);
+  // Set canvas ctx for renderer to use W/H (not dpr scaled)
+  renderer.W = W; renderer.H = H;
+  ui = new UI(canvas);
+  ui.W = W; ui.H = H;
+  game = buildGame();
+
+  runLoadSequence(()=>{
+    appState = 'title';
+    requestAnimationFrame(loop);
+  });
+}
+
+// ─── Build game instance ──────────────────────────────────────────────────────
+function buildGame(){
+  const g = new Game(canvas);
+  g.W = W; g.H = H;
+
+  g.onCoinCollect = (x,y,worth,combo,mult)=>{
+    const sx=x-g.camera.x, sy=y-g.camera.y;
+    renderer.spawnCoinBurst(sx,sy);
+    const label = mult>1 ? `+${worth} (${mult}×!)` : `+${worth}`;
+    const color  = mult>=4?'#ff9933':mult>=2?'#ffcc44':'#FFD700';
+    ui.addFloat(sx, sy-22, label, color, mult>1?24:20);
+    saveData.totalCoinsEver = (saveData.totalCoinsEver||0)+worth;
+    if(worth>=2) Save.save(saveData);
+    // Haptic feedback
+    if(navigator.vibrate && mult>1) navigator.vibrate(20);
+  };
+
+  g.onCheckpoint = (x,y,bonus)=>{
+    const flash=document.getElementById('cp-flash');
+    flash.style.transition='none';
+    flash.style.background='rgba(80,220,150,0.28)';
+    setTimeout(()=>{
+      flash.style.transition='background 1s ease';
+      flash.style.background='rgba(80,220,150,0)';
+    },50);
+    ui.addFloat(W/2, H*0.38, `✦ CHECKPOINT! +${bonus}`, '#66ffaa', 26, 2);
+    ui.showScreenFlash('rgba(80,220,150,0.12)');
+    renderer.spawnHookSparks(x-g.camera.x, y-g.camera.y);
+    saveData.checkpointsReached=(saveData.checkpointsReached||0)+1;
+    Save.save(saveData);
+    if(navigator.vibrate) navigator.vibrate([30,20,30]);
+
+    // Show weather change sometimes
+    renderer.setWeather(WEATHER_PRESETS[g.currentWeather]);
+    ui.showWeather(WEATHER_PRESETS[g.currentWeather].name);
+
+    // Show upgrade cards
+    setTimeout(()=>{
+      if(appState!=='playing') return;
+      appState='cards';
+      g.paused=true;
+      const cards=getRandomUpgrades(3);
+      ui.showCards(cards,(idx)=>{
+        g.applyUpgrade(cards[idx]);
+        g.paused=false;
+        appState='playing';
+        ui.addFloat(W/2,H*0.42, `${cards[idx].icon} ${cards[idx].name}!`, cards[idx].color, 28, 2.5);
+        ui.showScreenFlash(`${cards[idx].color}44`);
+      });
+    }, 700);
+  };
+
+  g.onGameOver = ()=>{
+    const hM=Math.floor(g.highestY/10);
+    const coins=Math.floor(g.coinsCollected);
+    const isRecord=g.highestY>(saveData.highestPoint||0);
+    if(isRecord) saveData.highestPoint=g.highestY;
+    saveData.gamesPlayed=(saveData.gamesPlayed||0)+1;
+    saveData.totalDistanceM=(saveData.totalDistanceM||0)+hM;
+    if(g.comboCount > (saveData.bestCombo||0)) saveData.bestCombo=g.comboCount;
+    Save.save(saveData);
+    document.getElementById('d-height').textContent=`${hM}m${isRecord?' ★':''}`;
+    document.getElementById('d-coins').textContent=Math.floor(g.coinsCollected);
+    document.getElementById('d-cps').textContent=g.checkpointsReached;
+    document.getElementById('death').classList.add('active');
+    appState='dead';
+    if(isRecord){
+      document.querySelector('.death-sub').textContent='New personal best! The summit beckons.';
+    }
+    if(navigator.vibrate) navigator.vibrate([60,30,60,30,120]);
+  };
+
+  g.onHeightRecord = (h)=>{
+    // Check milestones
+    const hM=Math.floor(h/10);
+    if(MILESTONES[nextMilestone] && hM>=MILESTONES[nextMilestone]){
+      ui.showMilestone(`${MILESTONES[nextMilestone]}m Reached! 🏔`);
+      nextMilestone++;
+      renderer.spawnCoinBurst(W/2,H/2);
+    }
+    // New record flash
+    if(h>(saveData.highestPoint||0)){
+      const banner=document.getElementById('record-banner');
+      banner.textContent=`★ NEW RECORD: ${Math.floor(h/10)}m`;
+      banner.classList.add('show');
+      clearTimeout(window._recordTimeout);
+      window._recordTimeout=setTimeout(()=>banner.classList.remove('show'),3000);
+    }
+  };
+
+  return g;
+}
+
+// ─── Touch/Mouse input ────────────────────────────────────────────────────────
+function spawnRipple(x,y){
+  const el=document.createElement('div');
+  el.className='touch-ripple';
+  el.style.left=x+'px'; el.style.top=y+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),500);
+}
+
+let hintHidden=false;
+function hideHint(){
+  if(hintHidden) return;
+  hintHidden=true;
+  const h=document.getElementById('touch-hint');
+  h.classList.add('hidden');
+  setTimeout(()=>h.style.display='none',1200);
+}
+
+function pointerDown(x,y){
+  if(appState==='title'){
+    spawnRipple(x,y);
+    ui.checkTitleClick(x,y,saveData,()=>startGame(),()=>{
+      Save.clear(); saveData=Save.load();
+      ui.addFloat(W/2,H/2,'Save cleared!','#ff8888',20);
+    });
+    return;
+  }
+  if(appState==='cards'){ ui.handleClick(x,y); return; }
+  if(appState==='playing'){
+    hideHint();
+    spawnRipple(x,y);
+    game.onTouchStart(x,y);
+  }
+}
+function pointerMove(x,y){
+  if(appState==='cards'){ ui.handleMove(x,y); return; }
+  if(appState==='playing') game.onTouchMove(x,y);
+}
+function pointerUp(x,y){
+  if(appState==='playing') game.onTouchEnd(x,y);
+}
+
+// Mouse
+canvas.addEventListener('mousedown', e=>pointerDown(e.clientX,e.clientY));
+canvas.addEventListener('mousemove', e=>pointerMove(e.clientX,e.clientY));
+canvas.addEventListener('mouseup',   e=>pointerUp(e.clientX,e.clientY));
+
+// Touch — multi-touch safe
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  pointerDown(t.clientX,t.clientY);
+},{passive:false});
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  pointerMove(t.clientX,t.clientY);
+},{passive:false});
+canvas.addEventListener('touchend', e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  pointerUp(t.clientX,t.clientY);
+},{passive:false});
+canvas.addEventListener('touchcancel', e=>{
+  e.preventDefault();
+  if(game&&appState==='playing') game.pointer.down=false;
+},{passive:false});
+
+// Prevent context menu on long-press mobile
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// Buttons
+document.getElementById('btn-retry').addEventListener('click',()=>{
+  document.getElementById('death').classList.remove('active');
+  startGame();
+});
+document.getElementById('btn-title').addEventListener('click',()=>{
+  document.getElementById('death').classList.remove('active');
+  appState='title';
+  ui.showTitle=true;
+  ui.titleT=0;
+});
+
+// ─── Start Game ───────────────────────────────────────────────────────────────
+function startGame(){
+  nextMilestone=0;
+  // Find first milestone above 0
+  for(let i=0;i<MILESTONES.length;i++){
+    if(MILESTONES[i]>0){nextMilestone=i;break;}
+  }
+  hintHidden=false;
+  const hint=document.getElementById('touch-hint');
+  hint.style.display='';
+  hint.classList.remove('hidden');
+  setTimeout(()=>{
+    hint.classList.add('hidden');
+    setTimeout(()=>hint.style.display='none',1200);
+  },4000);
+
+  game=buildGame();
+  game.running=true;
+  appState='playing';
+  renderer.setWeather(WEATHER_PRESETS['rainy']);
+  ui.showTitle=false;
+  saveData.gamesPlayed=(saveData.gamesPlayed||0);
+  Save.save(saveData);
+}
+
+// ─── Main Render Loop ────────────────────────────────────────────────────────
+function loop(ts){
+  requestAnimationFrame(loop);
+
+  const raw=ts-lastTime;
+  lastTime=ts;
+  const dt=Math.min(raw,50); // cap at 50ms (20fps min)
+
+  ctx.save();
+  ctx.clearRect(0,0,W,H);
+
+  const camY = (game&&appState!=='title') ? game.camera.y : 0;
+
+  // ── Background (always)
+  renderer.update(dt, camY);
+  renderer.drawBackground(camY);
+  renderer.drawFog(camY);
+
+  if(appState==='title'){
+    renderer.drawRain();
+    renderer.drawParticles();
+    ui.update(dt,null);
+    ui.drawTitle(saveData, ()=>startGame(), ()=>{
+      Save.clear(); saveData=Save.load();
+    });
+
+  } else {
+    // ── Game view ──────────────────────────────────────────────
+    const g=game;
+    const cam=g.camera;
+
+    // Terrain
+    g.drawTerrain(ctx);
+
+    // Aim indicator
+    if(appState==='playing' && !g.rope.attached) g.drawAim(ctx);
+
+    // Rope
+    if(g.rope.throwing){
+      const tip=g.getRopeTip();
+      if(tip){
+        renderer.drawRope(ctx,
+          g.player.x-cam.x, g.player.y-cam.y,
+          tip.x-cam.x, tip.y-cam.y,
+          g.rope.targetLength||g.playerStats.maxRopeLength, false
+        );
+      }
+    } else if(g.rope.attached){
+      renderer.drawRope(ctx,
+        g.player.x-cam.x, g.player.y-cam.y,
+        g.rope.anchorX-cam.x, g.rope.anchorY-cam.y,
+        g.rope.length, g.rope.taut
+      );
+    }
+
+    // Checkpoints
+    for(const cp of g.getVisible(g.checkpoints)){
+      renderer.drawCheckpoint(ctx, cp.x-cam.x, cp.y-cam.y, cp.reached, cp.animT);
+    }
+
+    // Coins
+    for(const coin of g.getVisible(g.coins)){
+      if(!coin.collected)
+        renderer.drawCoin(ctx, coin.x-cam.x, coin.y-cam.y, coin.rare?14:coin.radius, g.time+coin.anim);
+    }
+
+    // Player
+    const pl=g.player;
+    const ropeAngle=g.rope.attached
+      ? Math.atan2(g.rope.anchorY-pl.y, g.rope.anchorX-pl.x) : 0;
+    renderer.drawPlayer(ctx,
+      pl.x-cam.x, pl.y-cam.y,
+      {x:pl.vx,y:pl.vy},
+      g.rope.attached, ropeAngle, pl.grounded, g.playerStats
+    );
+
+    // Rain on top
+    renderer.drawRain();
+    renderer.drawParticles();
+
+    // HUD
+    const speed=Math.sqrt(pl.vx*pl.vx+pl.vy*pl.vy);
+    ui.update(dt,{
+      coins:   g.coinsCollected,
+      height:  g.highestY,
+      combo:   g.comboCount,
+      comboTimer: g.comboTimer,
+      comboWindow:g.comboWindow,
+      checkpoints:g.checkpointsReached,
+      upgrades:g.sessionUpgrades,
+      bestHeight: saveData.highestPoint||0,
+    });
+    ui.drawHUD({
+      coins:   g.coinsCollected,
+      height:  g.highestY,
+      combo:   g.comboCount,
+      comboTimer:g.comboTimer,
+      comboWindow:g.comboWindow,
+      checkpoints:g.checkpointsReached,
+      upgrades:g.sessionUpgrades,
+      bestHeight:saveData.highestPoint||0,
+    });
+
+    // Cards overlay
+    if(appState==='cards') ui.drawCards();
+
+    // Update physics
+    if(appState==='playing') g.update(dt);
+
+    // Spawn hook sparks when rope attaches
+    if(g.rope.justAttached){
+      renderer.spawnHookSparks(g.rope.anchorX-cam.x, g.rope.anchorY-cam.y);
+      if(navigator.vibrate) navigator.vibrate(12);
+      g.rope.justAttached=false;
+    }
+
+    // Weather sync
+    if(WEATHER_PRESETS[g.currentWeather]){
+      renderer.setWeather(WEATHER_PRESETS[g.currentWeather]);
+    }
+  }
+
+  ui.drawFlash();
+  ui.drawTransition();
+  ctx.restore();
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
